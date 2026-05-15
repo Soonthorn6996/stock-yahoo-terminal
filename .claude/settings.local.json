@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(python3 *)",
+      "Read(//c/Users//**)",
+      "Read(//c/Users/soonthorn.a/**)",
+      "Read(//c/tmp/**)",
+      "Bash(gh auth *)",
+      "Bash(git --version)",
+      "Bash(git config *)"
+    ]
+  }
+}

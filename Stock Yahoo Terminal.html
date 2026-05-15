@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Yahoo Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Boot screen ── */
+#boot-screen{min-height:100vh;background:#050608;display:flex;align-items:center;justify-content:center;font-family:'Manrope',system-ui,sans-serif}
+.boot-inner{display:flex;flex-direction:column;align-items:center;gap:16px}
+.boot-mark{width:40px;height:40px;border-radius:10px;background:oklch(0.85 0.16 158);position:relative;animation:bpulse 1.8s infinite}
+.boot-mark::before{content:"";position:absolute;left:8px;bottom:8px;width:5px;height:14px;border-radius:2px;background:#050608}
+.boot-mark::after{content:"";position:absolute;left:17px;bottom:8px;width:5px;height:20px;border-radius:2px;background:#050608}
+.boot-mark .third{position:absolute;left:26px;bottom:8px;width:5px;height:10px;border-radius:2px;background:#050608}
+.boot-name{color:#f3f5f8;font-size:18px;font-weight:700;letter-spacing:.08em}
+.boot-sub{color:#4a505b;font-size:13px}
+@keyframes bpulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+/* ── Design system tokens ── */
+:root{
+  --bg-0:#050608;--bg-1:#0a0c10;--bg-2:#11141a;--bg-3:#181c24;--bg-4:#232833;
+  --line-1:rgba(255,255,255,.04);--line-2:rgba(255,255,255,.08);--line-3:rgba(255,255,255,.14);
+  --fg-0:#f3f5f8;--fg-1:#c8cdd5;--fg-2:#7d8591;--fg-3:#4a505b;--fg-4:#2d323a;
+  --accent:oklch(0.85 0.16 158);--accent-soft:oklch(0.85 0.16 158/.16);--accent-line:oklch(0.85 0.16 158/.40);
+  --up:oklch(0.80 0.17 152);--up-2:oklch(0.80 0.17 152/.14);
+  --down:oklch(0.70 0.22 25);--down-2:oklch(0.70 0.22 25/.14);
+  --radius-sm:6px;--radius:10px;--radius-lg:16px;--radius-xl:22px;
+  --shadow-1:0 1px 0 rgba(255,255,255,.04) inset,0 12px 30px -18px rgba(0,0,0,.7);
+  --shadow-2:0 1px 0 rgba(255,255,255,.05) inset,0 24px 50px -24px rgba(0,0,0,.85);
+  --font-sans:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg-0);color:var(--fg-0);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1100px 600px at 75% -10%,oklch(0.85 0.16 158/.06),transparent 60%),radial-gradient(900px 500px at -10% 110%,oklch(0.50 0.18 280/.05),transparent 60%);z-index:0}
+#root{position:relative;z-index:1}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select{font:inherit;color:inherit;background:none;border:0;outline:none}
+a{color:inherit;text-decoration:none;cursor:pointer}
+svg{flex-shrink:0}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.num{font-variant-numeric:tabular-nums}
+.dim{color:var(--fg-2)}
+.up{color:var(--up)}.down{color:var(--down)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;font-size:12px;border-radius:999px;background:var(--bg-3);color:var(--fg-1);border:1px solid var(--line-2)}
+.chip.up{background:var(--up-2);color:var(--up);border-color:transparent}
+.chip.down{background:var(--down-2);color:var(--down);border-color:transparent}
+.chip .dot{width:6px;height:6px;border-radius:999px;background:currentColor}
+
+/* ── App shell ── */
+.shell{display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"side top" "side main";min-height:100vh}
+.shell-top{grid-area:top}.shell-side{grid-area:side}
+.shell-main{grid-area:main;padding:24px 32px 80px;overflow-x:hidden}
+
+/* ── Top bar ── */
+.topbar{display:flex;align-items:center;gap:16px;padding:0 24px 0 28px;border-bottom:1px solid var(--line-1);background:linear-gradient(to bottom,var(--bg-1),var(--bg-0));position:sticky;top:0;z-index:30}
+.topbar .search{flex:1;max-width:520px;height:36px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:10px;color:var(--fg-2);cursor:text;transition:border-color .15s}
+.topbar .search:hover{border-color:var(--line-3)}
+.topbar .search kbd{font-family:var(--font-mono);font-size:11px;padding:2px 6px;background:var(--bg-3);border:1px solid var(--line-2);border-radius:5px;color:var(--fg-2)}
+.topbar .clock{font-family:var(--font-mono);font-size:12px;color:var(--fg-2);display:flex;align-items:center;gap:8px}
+.topbar .clock .live-dot{width:7px;height:7px;border-radius:999px;background:var(--up);box-shadow:0 0 0 4px var(--up-2);animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.topbar .avatar{width:32px;height:32px;border-radius:999px;background:linear-gradient(135deg,var(--accent),oklch(0.55 0.18 280));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--bg-0)}
+.api-badge{font-size:10px;padding:3px 8px;border-radius:999px;font-weight:600;letter-spacing:.04em}
+.api-badge.live{background:var(--up-2);color:var(--up);border:1px solid transparent}
+.api-badge.mock{background:var(--bg-3);color:var(--fg-3);border:1px solid var(--line-2)}
+
+/* ── Sidebar ── */
+.sidebar{border-right:1px solid var(--line-1);background:var(--bg-1);padding:18px 14px;display:flex;flex-direction:column;gap:4px}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 22px}
+.brand-mark{width:26px;height:26px;border-radius:7px;background:var(--accent);position:relative}
+.brand-mark::before{content:"";position:absolute;left:5px;bottom:5px;width:3px;height:9px;border-radius:1px;background:var(--bg-0)}
+.brand-mark::after{content:"";position:absolute;left:11px;bottom:5px;width:3px;height:14px;border-radius:1px;background:var(--bg-0)}
+.brand-mark .third{position:absolute;left:17px;bottom:5px;width:3px;height:6px;border-radius:1px;background:var(--bg-0)}
+.brand-name{font-weight:700;font-size:14px;letter-spacing:.04em}
+.brand-name span{color:var(--fg-2);font-weight:400}
+.nav-section{margin-top:14px;padding:0 8px 6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3)}
+.nav-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:8px;color:var(--fg-1);font-size:13.5px;font-weight:500;position:relative;transition:background .12s,color .12s}
+.nav-item:hover{background:var(--bg-2);color:var(--fg-0)}
+.nav-item.active{background:var(--bg-2);color:var(--fg-0)}
+.nav-item.active::before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:2px;background:var(--accent);border-radius:0 2px 2px 0}
+.nav-item svg{width:16px;height:16px;opacity:.85}
+.nav-mini{margin-top:auto;padding:12px;border-radius:var(--radius);border:1px solid var(--line-2);background:var(--bg-2);font-size:12px;color:var(--fg-2);line-height:1.5}
+.nav-mini b{color:var(--fg-0);font-weight:600}
+
+/* ── Card ── */
+.card{background:var(--bg-2);border:1px solid var(--line-1);border-radius:var(--radius-lg);padding:20px;position:relative}
+.card.tight{padding:16px}
+.card h3{margin:0 0 14px;font-size:13px;letter-spacing:.04em;color:var(--fg-2);font-weight:600;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between}
+
+/* ── Market ribbon ── */
+.ribbon{display:flex;gap:0;border:1px solid var(--line-1);background:var(--bg-1);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:18px}
+.ribbon-item{flex:1;padding:14px 16px;border-right:1px solid var(--line-1);display:flex;flex-direction:column;gap:4px;min-width:0}
+.ribbon-item:last-child{border-right:0}
+.ribbon-name{font-size:11px;color:var(--fg-2);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ribbon-price{font-family:var(--font-mono);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.ribbon-change{font-size:11px;font-family:var(--font-mono)}
+
+/* ── Watchlist table ── */
+.watchlist{width:100%;border-collapse:collapse}
+.watchlist th,.watchlist td{padding:12px 14px;text-align:right;font-size:13.5px;border-bottom:1px solid var(--line-1);white-space:nowrap}
+.watchlist th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-2);font-weight:500;padding-top:4px;padding-bottom:8px}
+.watchlist th:first-child,.watchlist td:first-child{text-align:left}
+.watchlist tbody tr{cursor:pointer;transition:background .1s}
+.watchlist tbody tr:hover{background:var(--bg-3)}
+.watchlist .sym{display:flex;align-items:center;gap:12px}
+.logo{border-radius:8px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:600;border:1px solid var(--line-2);flex-shrink:0}
+.watchlist .sym-text{display:flex;flex-direction:column;gap:1px;min-width:0}
+.watchlist .sym-ticker{font-weight:600;font-size:14px}
+.watchlist .sym-name{font-size:11.5px;color:var(--fg-2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spark-cell{width:120px}
+.spark{display:block}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:8px;font-size:13px;font-weight:600;background:var(--bg-3);border:1px solid var(--line-2);color:var(--fg-0);transition:all .12s}
+.btn:hover{background:var(--bg-4);border-color:var(--line-3)}
+.btn.primary{background:var(--accent);border-color:transparent;color:var(--bg-0)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent}
+.btn.icon{padding:8px}
+.btn svg{width:14px;height:14px}
+
+/* ── Detail screen ── */
+.detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:20px}
+.detail-title{display:flex;align-items:center;gap:16px}
+.detail-title .logo{width:48px;height:48px;font-size:14px}
+.detail-title h1{margin:0;font-size:18px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:10px}
+.detail-title h1 .ticker{font-family:var(--font-mono);font-weight:700;font-size:22px}
+.detail-title h1 .ex{font-size:10px;padding:3px 7px;background:var(--bg-3);border-radius:4px;color:var(--fg-2);letter-spacing:.08em;font-weight:500}
+.detail-title .name{font-size:13px;color:var(--fg-2);margin-top:2px}
+.price-block{display:flex;align-items:baseline;gap:16px}
+.price-block .big{font-family:var(--font-mono);font-size:44px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.price-block .delta{font-family:var(--font-mono);font-size:16px;font-weight:500}
+.range{height:6px;border-radius:999px;background:var(--bg-3);position:relative;margin:10px 0 6px}
+.range .fill{position:absolute;height:100%;border-radius:999px;background:linear-gradient(to right,var(--down),var(--accent));opacity:.4;left:0;right:0}
+.range .marker{position:absolute;top:-3px;width:12px;height:12px;border-radius:999px;background:var(--fg-0);border:2px solid var(--bg-1);transform:translateX(-50%)}
+.range-labels{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;color:var(--fg-2)}
+.period-tabs{display:inline-flex;padding:3px;background:var(--bg-1);border:1px solid var(--line-2);border-radius:8px;gap:2px}
+.period-tabs button{padding:6px 12px;font-size:12px;font-weight:500;border-radius:6px;color:var(--fg-2);font-family:var(--font-mono);letter-spacing:.04em}
+.period-tabs button.active{background:var(--bg-3);color:var(--fg-0);box-shadow:0 1px 0 var(--line-2) inset}
+.period-tabs button:hover:not(.active){color:var(--fg-0)}
+.chart-wrap{position:relative;height:360px;margin-top:8px}
+.chart-wrap svg{display:block;width:100%;height:100%}
+.crosshair-label{position:absolute;pointer-events:none;background:var(--bg-3);border:1px solid var(--line-2);padding:8px 12px;border-radius:8px;font-family:var(--font-mono);font-size:11px;line-height:1.5;color:var(--fg-0);box-shadow:var(--shadow-1);white-space:nowrap;z-index:5}
+.crosshair-label .date{color:var(--fg-2);font-size:10px;margin-bottom:4px}
+.crosshair-label .price{font-weight:600;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-1);border-radius:var(--radius);overflow:hidden;border:1px solid var(--line-1)}
+.stat{background:var(--bg-2);padding:14px 16px}
+.stat-label{font-size:11px;color:var(--fg-2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.stat-value{font-family:var(--font-mono);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.ai-card{background:linear-gradient(180deg,var(--accent-soft),transparent 70%),var(--bg-2);border:1px solid var(--accent-line);border-radius:var(--radius-lg);padding:20px;position:relative}
+.ai-card h3{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px}
+.ai-card p{margin:0;font-size:14px;line-height:1.65;color:var(--fg-1)}
+.ai-card .ai-mark{width:14px;height:14px;border-radius:3px;background:var(--accent);position:relative}
+.ai-card .ai-mark::after{content:"";position:absolute;inset:3px;background:var(--bg-0);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+
+/* ── Search overlay ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding-top:90px;animation:fadeIn .15s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.search-modal{width:560px;max-width:calc(100vw - 32px);background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--radius-lg);box-shadow:var(--shadow-2);overflow:hidden}
+.search-input{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line-1)}
+.search-input input{flex:1;font-size:16px;color:var(--fg-0)}
+.search-results{max-height:360px;overflow-y:auto;padding:6px}
+.search-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer}
+.search-row:hover,.search-row.focused{background:var(--bg-3)}
+.search-row .info{flex:1;min-width:0}
+.search-row .info .t{font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center}
+.search-row .info .t span{font-size:10px;color:var(--fg-2);padding:1px 5px;background:var(--bg-1);border-radius:3px}
+.search-row .info .n{font-size:11.5px;color:var(--fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-row .px{font-family:var(--font-mono);font-size:13px;text-align:right}
+.search-footer{border-top:1px solid var(--line-1);padding:10px 16px;display:flex;gap:14px;font-size:11px;color:var(--fg-2)}
+.search-footer kbd{font-family:var(--font-mono);background:var(--bg-1);padding:1px 5px;border-radius:3px;border:1px solid var(--line-2);font-size:10.5px;margin-right:4px}
+
+/* ── Login ── */
+.login-shell{min-height:100vh;display:grid;grid-template-columns:1fr 1fr}
+.login-pane{display:flex;flex-direction:column;justify-content:space-between;padding:40px 56px}
+.login-art{background:var(--bg-1);border-left:1px solid var(--line-1);position:relative;overflow:hidden}
+.login-card{max-width:380px;width:100%;margin:auto;padding:0}
+.login-card h1{margin:0 0 8px;font-size:28px;font-weight:700;letter-spacing:-.01em}
+.login-card .sub{color:var(--fg-2);font-size:14px;margin-bottom:28px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-2);margin-bottom:6px;font-weight:600}
+.field input[type=email],.field input[type=password],.field input[type=text]{width:100%;padding:11px 14px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:8px;color:var(--fg-0);font-size:14px;transition:border-color .12s}
+.field input:focus{border-color:var(--accent)}
+.field.row{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.field.row a{color:var(--accent)}
+.divider{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em;margin:18px 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line-2)}
+.oauth-row{display:flex;gap:10px}
+.oauth-row .btn{flex:1;justify-content:center}
+.foot{font-size:12px;color:var(--fg-3);display:flex;justify-content:space-between}
+.art-grid{position:absolute;inset:0;background-image:linear-gradient(var(--line-1) 1px,transparent 1px),linear-gradient(90deg,var(--line-1) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(circle at 50% 40%,#000 35%,transparent 75%)}
+.art-content{position:relative;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;text-align:center}
+.art-content h2{font-size:36px;font-weight:700;letter-spacing:-.01em;margin:0 0 12px;max-width:380px;line-height:1.15}
+.art-content p{color:var(--fg-2);margin:0 0 28px;max-width:380px;line-height:1.6;font-size:14px}
+.art-ticker-stack{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:420px}
+.art-tile{border:1px solid var(--line-2);background:var(--bg-2);border-radius:12px;padding:12px 14px}
+.art-tile .row1{display:flex;justify-content:space-between;font-size:11px;color:var(--fg-2);margin-bottom:4px}
+.art-tile .row1 b{color:var(--fg-0);font-family:var(--font-mono);font-weight:600}
+.art-tile .row2{font-family:var(--font-mono);font-size:16px;font-weight:600}
+
+/* ── Error/info toast ── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--bg-3);border:1px solid var(--line-2);border-radius:10px;font-size:13px;box-shadow:var(--shadow-2);animation:fadeIn .2s ease}
+.toast.error{border-color:var(--down-2);color:var(--down)}
+.toast.success{border-color:var(--up-2);color:var(--up)}
+
+/* ── Setup panel ── */
+.setup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(12px);z-index:150;display:flex;align-items:center;justify-content:center}
+.setup-card{width:520px;max-width:calc(100vw - 32px);background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--radius-xl);padding:32px;box-shadow:var(--shadow-2)}
+.setup-card h2{margin:0 0 6px;font-size:20px;font-weight:700}
+.setup-card .sub{color:var(--fg-2);font-size:13px;margin-bottom:24px}
+.setup-card pre{background:var(--bg-1);border:1px solid var(--line-2);border-radius:8px;padding:14px;font-family:var(--font-mono);font-size:11px;color:var(--fg-1);overflow-x:auto;line-height:1.6;margin:8px 0 16px}
+.tab-row{display:flex;gap:4px;margin-bottom:20px}
+.tab-row button{padding:7px 14px;font-size:12px;font-weight:600;border-radius:6px;color:var(--fg-2);background:transparent;border:1px solid transparent}
+.tab-row button.active{background:var(--bg-3);color:var(--fg-0);border-color:var(--line-2)}
+
+/* ── Responsive ── */
+@media(max-width:1200px){.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:980px){.shell{grid-template-columns:1fr;grid-template-areas:"top" "main"}.shell-side{display:none}.login-shell{grid-template-columns:1fr}.login-art{display:none}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:8px;border:2px solid var(--bg-0)}
+::-webkit-scrollbar-thumb:hover{background:var(--bg-4)}
+</style>
+</head>
+<body>
+
+<div id="root">
+  <div id="boot-screen">
+    <div class="boot-inner">
+      <div class="boot-mark"><div class="third"></div></div>
+      <div class="boot-name">STOCK YAHOO / TERMINAL</div>
+      <div class="boot-sub">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- CDN scripts -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<script type="text/babel" data-presets="react">
+
+// ═══════════════════════════════════════════════════════════
+//  CONFIG  —  กรอก Supabase credentials ของคุณที่นี่
+//  Fill in your Supabase project URL and anon key below.
+// ═══════════════════════════════════════════════════════════
+const CONFIG = {
+  SUPABASE_URL:      'https://ehhurpfwgmnhynvkxpxd.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_r85gDmSudfRb9XGNm5GmXA_uBab7Vt1',
+  // CORS proxy for Yahoo Finance (browser can't call directly)
+  YF_PROXY: 'https://corsproxy.io/?',
+};
+
+// ── Mock users (used when Supabase is not configured) ──────
+const MOCK_USERS = [
+  { email: 'trader@demo.com',  password: 'Demo1234!',  name: 'Demo Trader',  role: 'trader' },
+  { email: 'admin@demo.com',   password: 'Admin1234!', name: 'Admin User',   role: 'admin'  },
+  { email: 'guest@demo.com',   password: 'Guest1234!', name: 'Guest Viewer', role: 'guest'  },
+];
+
+// ── Supabase client (lazy) ─────────────────────────────────
+function getSupabase() {
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) return null;
+  if (!window._supaClient) {
+    window._supaClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  }
+  return window._supaClient;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AUTH LAYER
+// ═══════════════════════════════════════════════════════════
+const Auth = {
+  async signIn(email, password) {
+    const sb = getSupabase();
+    if (sb) {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
+      return { ...data.user, name: data.user.email.split('@')[0], source: 'supabase' };
+    }
+    // Fallback: mock auth
+    const u = MOCK_USERS.find(m => m.email === email && m.password === password);
+    if (!u) throw new Error('Invalid email or password');
+    return { email: u.email, name: u.name, role: u.role, source: 'mock' };
+  },
+
+  async signOut() {
+    const sb = getSupabase();
+    if (sb) await sb.auth.signOut();
+  },
+
+  async getSession() {
+    const sb = getSupabase();
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      if (data?.session?.user) return { ...data.session.user, name: data.session.user.email.split('@')[0], source: 'supabase' };
+    }
+    return null;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+//  YAHOO FINANCE API LAYER
+// ═══════════════════════════════════════════════════════════
+const YF = {
+  _cache: {},
+  _cacheTs: {},
+
+  async fetch(url) {
+    const proxied = CONFIG.YF_PROXY + encodeURIComponent(url);
+    const r = await fetch(proxied, { headers: { 'x-requested-with': 'XMLHttpRequest' } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  },
+
+  // Fetch multiple quotes at once
+  async getQuotes(symbols) {
+    const key = 'quotes:' + symbols.join(',');
+    if (this._cache[key] && Date.now() - this._cacheTs[key] < 30_000) return this._cache[key];
+    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&lang=en-US&region=US&fields=symbol,longName,regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketVolume,marketCap,trailingPE,fiftyTwoWeekHigh,fiftyTwoWeekLow,fullExchangeName,currency,sector`;
+    const data = await this.fetch(url);
+    const results = data?.quoteResponse?.result || [];
+    this._cache[key] = results;
+    this._cacheTs[key] = Date.now();
+    return results;
+  },
+
+  // Fetch chart (historical prices)
+  async getChart(symbol, range = '1mo', interval = '1d') {
+    const key = `chart:${symbol}:${range}`;
+    if (this._cache[key] && Date.now() - this._cacheTs[key] < 60_000) return this._cache[key];
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+    const data = await this.fetch(url);
+    const result = data?.chart?.result?.[0];
+    if (!result) throw new Error('No chart data');
+    const closes = result.indicators?.quote?.[0]?.close || [];
+    const filtered = closes.filter(v => v !== null && v !== undefined);
+    this._cache[key] = filtered;
+    this._cacheTs[key] = Date.now();
+    return filtered;
+  },
+
+  // Map Yahoo quote object → internal stock format
+  mapQuote(q, fallback = {}) {
+    return {
+      symbol:          q.symbol              || fallback.symbol,
+      name:            q.longName            || q.shortName || fallback.name,
+      exchange:        q.fullExchangeName    || fallback.exchange || 'N/A',
+      currency:        q.currency            || fallback.currency || 'USD',
+      price:           q.regularMarketPrice  ?? fallback.price,
+      change:          q.regularMarketChange ?? fallback.change,
+      change_percent:  q.regularMarketChangePercent ?? fallback.change_percent,
+      volume:          q.regularMarketVolume ?? fallback.volume,
+      market_cap:      q.marketCap           ?? fallback.market_cap,
+      pe_ratio:        q.trailingPE          ?? fallback.pe_ratio ?? 0,
+      week_52_high:    q.fiftyTwoWeekHigh    ?? fallback.week_52_high,
+      week_52_low:     q.fiftyTwoWeekLow     ?? fallback.week_52_low,
+      sector:          q.sector              || fallback.sector || '',
+      _live: true,
+    };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+//  MOCK / SEED DATA
+// ═══════════════════════════════════════════════════════════
+const MOCK_DB = {
+  AAPL:     { symbol:'AAPL',     name:'Apple Inc.',                    exchange:'NASDAQ', currency:'USD', price:189.30,  change:1.25,   change_percent:0.66,  volume:52341000,    market_cap:2930000000000, pe_ratio:29.8, week_52_high:199.62, week_52_low:164.08, sector:'Technology',              sparkSeed:7,  trend:'up' },
+  MSFT:     { symbol:'MSFT',     name:'Microsoft Corporation',         exchange:'NASDAQ', currency:'USD', price:432.18,  change:4.92,   change_percent:1.15,  volume:18402000,    market_cap:3210000000000, pe_ratio:36.4, week_52_high:468.35, week_52_low:309.45, sector:'Technology',              sparkSeed:11, trend:'up' },
+  NVDA:     { symbol:'NVDA',     name:'NVIDIA Corporation',            exchange:'NASDAQ', currency:'USD', price:1142.80, change:38.40,  change_percent:3.48,  volume:41220000,    market_cap:2810000000000, pe_ratio:71.2, week_52_high:1255.87,week_52_low:373.56, sector:'Semiconductors',          sparkSeed:3,  trend:'up' },
+  TSLA:     { symbol:'TSLA',     name:'Tesla, Inc.',                   exchange:'NASDAQ', currency:'USD', price:178.92,  change:-3.78,  change_percent:-2.07, volume:96402000,    market_cap:569000000000,  pe_ratio:51.0, week_52_high:299.29, week_52_low:138.80, sector:'Auto Manufacturers',      sparkSeed:17, trend:'down'},
+  GOOGL:    { symbol:'GOOGL',    name:'Alphabet Inc.',                 exchange:'NASDAQ', currency:'USD', price:174.46,  change:0.82,   change_percent:0.47,  volume:21800000,    market_cap:2160000000000, pe_ratio:26.7, week_52_high:178.22, week_52_low:120.21, sector:'Communication Services',  sparkSeed:5,  trend:'up' },
+  AMZN:     { symbol:'AMZN',     name:'Amazon.com, Inc.',              exchange:'NASDAQ', currency:'USD', price:184.30,  change:-0.92,  change_percent:-0.50, volume:32900000,    market_cap:1920000000000, pe_ratio:49.3, week_52_high:191.70, week_52_low:118.35, sector:'Internet Retail',         sparkSeed:19, trend:'down'},
+  META:     { symbol:'META',     name:'Meta Platforms, Inc.',          exchange:'NASDAQ', currency:'USD', price:478.22,  change:8.10,   change_percent:1.72,  volume:14300000,    market_cap:1210000000000, pe_ratio:28.0, week_52_high:531.49, week_52_low:286.79, sector:'Communication Services',  sparkSeed:2,  trend:'up' },
+  AMD:      { symbol:'AMD',      name:'Advanced Micro Devices, Inc.',  exchange:'NASDAQ', currency:'USD', price:162.18,  change:-2.40,  change_percent:-1.46, volume:48900000,    market_cap:262000000000,  pe_ratio:22.1, week_52_high:228.25, week_52_low:96.16,  sector:'Semiconductors',          sparkSeed:9,  trend:'down'},
+  COIN:     { symbol:'COIN',     name:'Coinbase Global, Inc.',         exchange:'NASDAQ', currency:'USD', price:218.40,  change:12.30,  change_percent:5.97,  volume:9400000,     market_cap:54200000000,   pe_ratio:38.5, week_52_high:283.48, week_52_low:60.20,  sector:'Capital Markets',         sparkSeed:31, trend:'up' },
+  'PTT.BK': { symbol:'PTT.BK',   name:'PTT Public Company Limited',    exchange:'SET',    currency:'THB', price:34.50,   change:0.25,   change_percent:0.73,  volume:88400000,    market_cap:985000000000,  pe_ratio:9.6,  week_52_high:38.50,  week_52_low:31.25,  sector:'Oil & Gas',               sparkSeed:13, trend:'up' },
+  'CPALL.BK':{ symbol:'CPALL.BK',name:'CP All Public Company Limited', exchange:'SET',    currency:'THB', price:56.75,   change:-0.50,  change_percent:-0.87, volume:22100000,    market_cap:510000000000,  pe_ratio:22.4, week_52_high:62.00,  week_52_low:49.50,  sector:'Consumer Defensive',      sparkSeed:23, trend:'down'},
+  'AOT.BK': { symbol:'AOT.BK',   name:'Airports of Thailand PCL',      exchange:'SET',    currency:'THB', price:62.25,   change:1.50,   change_percent:2.47,  volume:14700000,    market_cap:889000000000,  pe_ratio:41.2, week_52_high:75.50,  week_52_low:54.75,  sector:'Transportation',          sparkSeed:29, trend:'up' },
+};
+
+const INDICES = [
+  { symbol:'SPX',    name:'S&P 500',  price:5321.41, change_percent:0.48  },
+  { symbol:'NDX',    name:'NASDAQ',   price:18724.30,change_percent:0.91  },
+  { symbol:'DJI',    name:'DOW',      price:39387.76,change_percent:0.20  },
+  { symbol:'SET',    name:'SET Index',price:1342.18, change_percent:-0.15 },
+  { symbol:'VIX',    name:'VIX',      price:14.2,    change_percent:-3.40 },
+  { symbol:'BTCUSD', name:'BTC/USD',  price:68420.00,change_percent:2.18  },
+];
+
+const DEFAULT_WATCHLIST = ['AAPL','NVDA','TSLA','MSFT','PTT.BK','AOT.BK'];
+
+// ── Helpers ───────────────────────────────────────────────
+function fmtPct(v) { return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+function fmtBig(n) {
+  if (!n && n !== 0) return '—';
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+function fmtPrice(price, currency) {
+  if (price === undefined || price === null) return '—';
+  const sym = currency === 'THB' ? '฿' : '$';
+  return sym + price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Seeded pseudo-random sparkline data
+function buildSpark(stock, n = 32) {
+  const seed = stock.sparkSeed ?? 1;
+  let x = seed * 1000 + 12345;
+  const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+  let v = stock.price * (1 - (stock.trend === 'down' ? -0.06 : 0.02));
+  const arr = [];
+  for (let i = 0; i < n; i++) {
+    v *= 1 + (rnd() - (stock.trend === 'down' ? 0.52 : 0.48)) * 0.025;
+    arr.push(v);
+  }
+  arr[n - 1] = stock.price;
+  return arr;
+}
+
+function buildSeries(stock, n = 60, vol = 0.15) {
+  const seed = (stock.sparkSeed ?? 1) * 7 + 99;
+  let x = seed * 777;
+  const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+  const arr = [];
+  let v = stock.price * (1 - (stock.change_percent / 100) * (n / 30));
+  for (let i = 0; i < n; i++) {
+    v *= 1 + (rnd() - 0.48) * (vol / Math.sqrt(n));
+    arr.push(v);
+  }
+  arr[n - 1] = stock.price;
+  return arr;
+}
+
+const AI_SUMMARIES = {
+  AAPL:  'Apple continues to demonstrate pricing power with iPhone 15 cycle demand holding up better than expected. Services segment accelerating—App Store + iCloud now represent ~25% of revenue at high-margin rates. Vision Pro launch signals ecosystem expansion. Watch FX headwinds into Q3 guidance.',
+  MSFT:  'Azure growth reacceleration driven by AI workloads (OpenAI partnership translating to enterprise bookings). Copilot integration across Office 365 suite driving ARPU expansion. Gaming division stabilizing post-Activision integration. Consensus underestimates cloud margin expansion trajectory.',
+  NVDA:  'Data center segment is the dominant growth driver—hyperscaler capex for H100/H200 clusters remains outsized. Automotive design wins (Thor platform) provide long-duration revenue visibility. Near-term risk: export restrictions to China. Supply constraints for Blackwell generation easing into H2.',
+  TSLA:  'Price cuts compressing margins; Q2 gross margin auto ex-credits tracking below 18%. Robotaxi event is the next major catalyst—positive surprise could re-rate the stock. Energy generation segment growing 40% YoY and under-appreciated by market. FSD subscription attach rate improving.',
+  GOOGL: 'Search revenue stabilizing as AI Overviews integrate; early data shows user engagement holding. YouTube Shorts monetization improving toward long-form parity. Google Cloud +28% YoY, gaining share vs Azure/AWS in AI infrastructure. Buyback program accelerating, reducing share count ~1.5% annually.',
+  AMZN:  'AWS re-accelerating (+17% YoY) driven by AI infrastructure spend and workload migration resumption. Retail advertising the hidden gem—high-margin, ~$50B run-rate. Logistics network now profitable. Bedrock and custom Trainium/Inferentia chips reduce AI cost structure vs competitors.',
+  META:  'Ad targeting recovery post-ATT tracking changes through on-device ML. Llama open-source strategy creating developer ecosystem moat. Threads scaling rapidly. Reality Labs losses remain a drag (~$5B/year) but metaverse capex spend moderating. Buyback yield ~3%, best capital return in megacap tech.',
+  AMD:   'MI300X ramp key catalyst—initial hyperscaler deployments gaining traction with Google, Microsoft, Oracle. CPU share gains vs Intel continuing in server segment (Zen 5). PC cycle recovery supporting client segment. Near-term risk: NVDA supply improving, reducing AMD urgency for some buyers.',
+  COIN:  'Bitcoin ETF approval drove institutional onboarding—custody and institutional revenue growing fastest. Transaction revenue correlated to crypto volatility. Base blockchain driving fee diversification. Regulatory clarity improving under new administration. High operating leverage to crypto bull markets.',
+  'PTT.BK':   'PTT remains Thailand\'s dominant energy conglomerate with stable upstream oil & gas production. Dividend yield ~5% attracts income-focused investors. Downstream refining margins normalizing after elevated 2022-23 period. SET index weightage makes it a core Thai equity holding.',
+  'CPALL.BK': 'CP All operates 7-Eleven convenience stores across Thailand—market-leading store density. Same-store sales growth recovering as tourism rebounds. Makro wholesale integration creating supply chain synergies. Regulatory risk around minimum wage increases could pressure margins.',
+  'AOT.BK':   'Airports of Thailand operates 6 major airports including Suvarnabhumi. International passenger recovery tracking ahead of pre-COVID levels. Duty-free concession revenue highest-margin segment. New Suvarnabhumi expansion (satellite terminal) will increase capacity 30M passengers. Long-duration infrastructure story.',
+};
+function aiSummaryFor(sym) { return AI_SUMMARIES[sym] || `${sym} is showing ${MOCK_DB[sym]?.change_percent >= 0 ? 'positive' : 'negative'} momentum. Monitor key technical levels and earnings calendar for near-term catalysts.`; }
+
+// ═══════════════════════════════════════════════════════════
+//  ICON COMPONENTS
+// ═══════════════════════════════════════════════════════════
+const ICO = { width:16, height:16, fill:'none', stroke:'currentColor', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round' };
+const Icon = {
+  Search:(p)=>(<svg viewBox="0 0 24 24" {...ICO} {...p}><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>),
+  Dashboard:(p)=>(<svg viewBox="0 0 24 24" {...ICO} {...p}><rect x="3" y="3" width="7" height="9" rx="1.2"/><rect x="14" y="3" width="7" height="5" rx="1.2"/><rect x="3" y="16" width="7" height="5" rx="1.2"/><rect x="14" y="12" width="7" height="9" rx="1.2"/></svg>),
+  Star:({filled,...p})=>(<svg viewBox="0 0 24 24" {...ICO} fill={filled?'currentColor':'none'} strokeWidth="1.6" {...p}><path d="M12 3l2.7 5.7 6.3.9-4.6 4.4 1.1 6.2L12 17.3 6.5 20.2l1.1-6.2L3 9.6l6.3-.9L12 3z"/></svg>),
+  Sparkles:(p)=>(<svg viewBox="0 0 24 24" {...ICO} {...p}><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>),
+  Globe:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.6" {...p}><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>),
+  Bell:(p)=>(<svg viewBox="0 0 24 24" {...ICO} {...p}><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5 2 6H4c.5-1 2-2 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>),
+  Settings:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.6" {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>),
+  Plus:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="2" {...p}><path d="M12 5v14M5 12h14"/></svg>),
+  TrendUp:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="2" {...p}><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>),
+  TrendDown:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="2" {...p}><path d="M3 7l6 6 4-4 8 8"/><path d="M14 17h7v-7"/></svg>),
+  Chevron:({dir='right',...p})=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="2" {...p} style={{transform:dir==='right'?'':dir==='down'?'rotate(90deg)':dir==='up'?'rotate(-90deg)':'rotate(180deg)',...(p.style||{})}}><path d="M9 6l6 6-6 6"/></svg>),
+  Eye:({off,...p})=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.7" {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>{off&&<path d="M4 4l16 16"/>}</svg>),
+  ArrowLeft:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="2" {...p}><path d="M15 6l-6 6 6 6"/></svg>),
+  Trash:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.6" {...p}><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>),
+  SignOut:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.7" {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>),
+  Refresh:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.7" {...p}><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>),
+  Key:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="1.7" {...p}><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15 8l3 3"/></svg>),
+  X:(p)=>(<svg viewBox="0 0 24 24" {...ICO} strokeWidth="2" {...p}><path d="M18 6L6 18M6 6l12 12"/></svg>),
+};
+
+// ═══════════════════════════════════════════════════════════
+//  CHART COMPONENTS
+// ═══════════════════════════════════════════════════════════
+function Sparkline({ data, color, width=110, height=32 }) {
+  if (!data || data.length < 2) return null;
+  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+  const pad = 1, step = (width - pad*2) / (data.length - 1);
+  const pts = data.map((v,i) => [pad + i*step, pad + (height-pad*2)*(1-(v-min)/range)]);
+  const d = pts.map((p,i) => (i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  return (
+    <svg className="spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function LineChart({ series, trend, height=360 }) {
+  const wrapRef = React.useRef(null);
+  const [hover, setHover] = React.useState(null);
+  const [w, setW] = React.useState(800);
+  React.useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver(entries => { for (const e of entries) setW(e.contentRect.width); });
+    ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
+  if (!series || series.length < 2) return <div className="chart-wrap" ref={wrapRef} style={{display:'flex',alignItems:'center',justifyContent:'center',color:'var(--fg-3)',fontSize:13}}>Loading chart data...</div>;
+  const padL=8,padR=56,padT=14,padB=26,W=Math.max(300,w),H=height;
+  const min=Math.min(...series),max=Math.max(...series),range=max-min||1;
+  const step=(W-padL-padR)/(series.length-1);
+  const xy=series.map((v,i)=>[padL+i*step, padT+(H-padT-padB)*(1-(v-min)/range)]);
+  const d=xy.map((p,i)=>(i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  const dFill=d+` L${xy[xy.length-1][0]},${H-padB} L${xy[0][0]},${H-padB} Z`;
+  const color=trend==='down'?'var(--down)':'var(--accent)';
+  const gradId='g_'+trend;
+  const ticks=4, yLines=[];
+  for (let i=0;i<=ticks;i++) { const v=min+(range*i/ticks); yLines.push({y:padT+(H-padT-padB)*(1-(v-min)/range),v}); }
+  const days=series.length, today=new Date();
+  const labelIdx=[0,Math.floor(days/4),Math.floor(days/2),Math.floor(3*days/4),days-1];
+  const xLabels=labelIdx.map(i=>{const dt=new Date(today);dt.setDate(dt.getDate()-(days-1-i));return{x:xy[i][0],label:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})};});
+  const onMove=(e)=>{
+    const rect=wrapRef.current.getBoundingClientRect();
+    const mx=e.clientX-rect.left;
+    if (mx<padL||mx>W-padR){setHover(null);return;}
+    const idx=Math.max(0,Math.min(series.length-1,Math.round((mx-padL)/step)));
+    setHover({idx,x:xy[idx][0],y:xy[idx][1]});
+  };
+  return (
+    <div className="chart-wrap" ref={wrapRef} onMouseMove={onMove} onMouseLeave={()=>setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.28"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {yLines.map((l,i)=>(
+          <g key={i}>
+            <line x1={padL} x2={W-padR} y1={l.y} y2={l.y} stroke="rgba(255,255,255,.04)" strokeDasharray="2 4"/>
+            <text x={W-padR+8} y={l.y+3} fontSize="10" fill="var(--fg-3)" fontFamily="var(--font-mono)">{l.v>=1000?l.v.toFixed(0):l.v.toFixed(2)}</text>
+          </g>
+        ))}
+        {xLabels.map((l,i)=>(
+          <text key={i} x={l.x} y={H-4} fontSize="10" fill="var(--fg-3)" fontFamily="var(--font-mono)" textAnchor="middle">{l.label}</text>
+        ))}
+        <path d={dFill} fill={`url(#${gradId})`}/>
+        <path d={d} fill="none" stroke={color} strokeWidth="1.7" strokeLinejoin="round"/>
+        {hover&&<>
+          <line x1={hover.x} x2={hover.x} y1={padT} y2={H-padB} stroke="rgba(255,255,255,.12)" strokeDasharray="3 3"/>
+          <circle cx={hover.x} cy={hover.y} r="4" fill={color} stroke="var(--bg-0)" strokeWidth="2"/>
+        </>}
+      </svg>
+      {hover&&(
+        <div className="crosshair-label" style={{
+          left: hover.x+padL > W*0.7 ? hover.x-130 : hover.x+16,
+          top: Math.max(10, hover.y-20),
+        }}>
+          <div className="date">{(()=>{const dt=new Date(today);dt.setDate(dt.getDate()-(series.length-1-hover.idx));return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});})()}</div>
+          <div className="price">{fmtPrice(series[hover.idx],'USD')}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  REUSABLE UI COMPONENTS
+// ═══════════════════════════════════════════════════════════
+function StockLogo({ symbol, size=32 }) {
+  const text = symbol.split('.')[0].slice(0,4);
+  const hues = [158,280,50,24,200,320,100];
+  const hue = hues[symbol.charCodeAt(0) % hues.length];
+  return (
+    <div className="logo" style={{width:size,height:size,background:`oklch(0.30 0.05 ${hue})`,color:`oklch(0.85 0.16 ${hue})`,borderColor:`oklch(0.45 0.08 ${hue}/.4)`,fontSize:size>40?14:11}}>
+      {text}
+    </div>
+  );
+}
+
+function MarketRibbon({ indices }) {
+  return (
+    <div className="ribbon">
+      {indices.map(it=>(
+        <div className="ribbon-item" key={it.symbol}>
+          <div className="ribbon-name">{it.name}</div>
+          <div className="ribbon-price">{it.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+          <div className={'ribbon-change '+(it.change_percent>=0?'up':'down')}>{fmtPct(it.change_percent)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Toast({ msg, type='info', onClose }) {
+  React.useEffect(() => { const t = setTimeout(onClose, 4000); return ()=>clearTimeout(t); }, []);
+  return <div className={`toast ${type}`}><span>{msg}</span><button className="btn ghost" style={{padding:4}} onClick={onClose}><Icon.X/></button></div>;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOGIN SCREEN
+// ═══════════════════════════════════════════════════════════
+function LoginScreen({ onLogin, onOpenSetup }) {
+  const [email, setEmail] = React.useState('trader@demo.com');
+  const [pwd, setPwd] = React.useState('Demo1234!');
+  const [showPwd, setShowPwd] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const hasSupabase = CONFIG.SUPABASE_URL && CONFIG.SUPABASE_URL !== '';
+
+  const submit = async (e) => {
+    e?.preventDefault();
+    setLoading(true); setErr('');
+    try {
+      const user = await Auth.signIn(email, pwd);
+      onLogin(user);
+    } catch(ex) {
+      setErr(ex.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const arts = [
+    {sym:'NVDA',  px:'1,142.80',pct:'+3.48%',up:true },
+    {sym:'AAPL',  px:'189.30',  pct:'+0.66%',up:true },
+    {sym:'TSLA',  px:'178.92',  pct:'-2.07%',up:false},
+    {sym:'PTT.BK',px:'฿34.50', pct:'+0.73%',up:true },
+  ];
+
+  return (
+    <div className="login-shell">
+      <div className="login-pane">
+        <div className="brand" style={{padding:0}}>
+          <div className="brand-mark"><div className="third"/></div>
+          <div className="brand-name">STOCK YAHOO <span>/ TERMINAL</span></div>
+        </div>
+
+        <form className="login-card" onSubmit={submit}>
+          <h1>Sign in</h1>
+          <div className="sub">
+            Real-time market data + AI desk.{' '}
+            {hasSupabase
+              ? <span style={{color:'var(--accent)'}}>Supabase connected ✓</span>
+              : <a onClick={onOpenSetup} style={{color:'var(--accent)'}}>Configure Supabase →</a>}
+          </div>
+
+          {!hasSupabase && (
+            <div style={{background:'var(--bg-3)',border:'1px solid var(--line-2)',borderRadius:8,padding:'10px 14px',fontSize:12,color:'var(--fg-2)',marginBottom:16}}>
+              <b style={{color:'var(--fg-1)'}}>Demo mode</b> — Mock credentials: trader@demo.com / Demo1234!
+            </div>
+          )}
+
+          {err && <div style={{background:'var(--down-2)',border:'1px solid var(--down)',borderRadius:8,padding:'10px 14px',fontSize:13,color:'var(--down)',marginBottom:14}}>{err}</div>}
+
+          <div className="field">
+            <label>Email</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@firm.com" required/>
+          </div>
+          <div className="field">
+            <label>Password</label>
+            <div style={{position:'relative'}}>
+              <input type={showPwd?'text':'password'} value={pwd} onChange={e=>setPwd(e.target.value)} style={{paddingRight:40}} required/>
+              <button type="button" onClick={()=>setShowPwd(s=>!s)} style={{position:'absolute',right:8,top:8,padding:6,color:'var(--fg-2)'}} aria-label="Toggle password">
+                <Icon.Eye off={!showPwd}/>
+              </button>
+            </div>
+          </div>
+          <div className="field row">
+            <label style={{display:'flex',alignItems:'center',gap:6,textTransform:'none',letterSpacing:0,color:'var(--fg-1)',fontSize:12,fontWeight:500}}>
+              <input type="checkbox" defaultChecked style={{accentColor:'var(--accent)'}}/> Remember me
+            </label>
+            <a href="#">Forgot password?</a>
+          </div>
+
+          <button className="btn primary" type="submit" style={{width:'100%',justifyContent:'center',padding:'12px 14px',marginTop:4}} disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign in to terminal'}
+            {!loading && <Icon.Chevron dir="right"/>}
+          </button>
+
+          <div className="divider">or demo accounts</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {MOCK_USERS.map(u=>(
+              <button key={u.email} type="button" className="btn" style={{justifyContent:'space-between',fontSize:12,padding:'8px 12px'}}
+                onClick={()=>{setEmail(u.email);setPwd(u.password);}}>
+                <span style={{color:'var(--fg-0)',fontWeight:600}}>{u.name}</span>
+                <span style={{color:'var(--fg-3)'}}>{u.email}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{marginTop:20,fontSize:12,color:'var(--fg-2)',textAlign:'center'}}>
+            <button type="button" onClick={onOpenSetup} className="btn ghost" style={{fontSize:12,padding:'6px 10px',color:'var(--fg-2)'}}>
+              <Icon.Key/> Configure Supabase
+            </button>
+          </div>
+        </form>
+
+        <div className="foot">
+          <span>© 2026 Stock Yahoo</span>
+          <span>v2.4.0 · Supabase + Yahoo Finance</span>
+        </div>
+      </div>
+
+      <div className="login-art">
+        <div className="art-grid"/>
+        <div className="art-content">
+          <h2>Markets, decoded by AI.</h2>
+          <p>Stream Yahoo Finance quotes, annotate charts, and get an instant AI brief on every ticker you watch.</p>
+          <div className="art-ticker-stack">
+            {arts.map(a=>(
+              <div className="art-tile" key={a.sym}>
+                <div className="row1"><b>{a.sym}</b><span className={a.up?'up':'down'}>{a.pct}</span></div>
+                <div className="row2">{a.px}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SETUP PANEL (Supabase config + SQL migration)
+// ═══════════════════════════════════════════════════════════
+function SetupPanel({ onClose }) {
+  const [tab, setTab] = React.useState('config');
+  const [url, setUrl] = React.useState(CONFIG.SUPABASE_URL);
+  const [key, setKey] = React.useState(CONFIG.SUPABASE_ANON_KEY);
+  const [saved, setSaved] = React.useState(false);
+
+  const save = () => {
+    CONFIG.SUPABASE_URL = url;
+    CONFIG.SUPABASE_ANON_KEY = key;
+    localStorage.setItem('sy_supabase_url', url);
+    localStorage.setItem('sy_supabase_key', key);
+    window._supaClient = null;
+    setSaved(true);
+    setTimeout(()=>{setSaved(false);onClose();}, 1200);
+  };
+
+  const SQL = `-- Run this in Supabase SQL Editor to create demo users
+-- Go to: Authentication > Users to add users manually, or use the SQL below
+
+-- Option 1: Create users via Supabase Auth API (recommended)
+-- Use the Auth dashboard: Authentication > Users > Add User
+
+-- Option 2: Insert directly (requires auth schema access)
+-- Password hash below is for: Demo1234!
+insert into auth.users (
+  instance_id, id, aud, role, email,
+  encrypted_password, email_confirmed_at,
+  created_at, updated_at, raw_app_meta_data, raw_user_meta_data
+) values
+(
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(), 'authenticated', 'authenticated',
+  'trader@demo.com',
+  crypt('Demo1234!', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"Demo Trader","role":"trader"}'
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(), 'authenticated', 'authenticated',
+  'admin@demo.com',
+  crypt('Admin1234!', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"Admin User","role":"admin"}'
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(), 'authenticated', 'authenticated',
+  'guest@demo.com',
+  crypt('Guest1234!', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"Guest Viewer","role":"guest"}'
+);
+
+-- Optional: User profiles table
+create table if not exists public.profiles (
+  id uuid references auth.users(id) primary key,
+  name text,
+  role text default 'trader',
+  watchlist text[] default array['AAPL','NVDA','TSLA','MSFT'],
+  created_at timestamptz default now()
+);
+alter table public.profiles enable row level security;
+create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id);
+create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);`;
+
+  return (
+    <div className="setup-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="setup-card">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+          <div>
+            <h2>Supabase Configuration</h2>
+            <div className="sub">Connect your Supabase project for real authentication</div>
+          </div>
+          <button className="btn ghost" style={{padding:6}} onClick={onClose}><Icon.X/></button>
+        </div>
+
+        <div className="tab-row">
+          {['config','sql','accounts'].map(t=>(
+            <button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t==='config'?'Connection':t==='sql'?'SQL Setup':'Demo Accounts'}</button>
+          ))}
+        </div>
+
+        {tab==='config'&&(
+          <div>
+            <div className="field">
+              <label>Supabase Project URL</label>
+              <input type="text" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" style={{width:'100%',padding:'11px 14px',background:'var(--bg-1)',border:'1px solid var(--line-2)',borderRadius:8,color:'var(--fg-0)',fontSize:14}}/>
+            </div>
+            <div className="field">
+              <label>Anon/Public Key</label>
+              <input type="text" value={key} onChange={e=>setKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style={{width:'100%',padding:'11px 14px',background:'var(--bg-1)',border:'1px solid var(--line-2)',borderRadius:8,color:'var(--fg-0)',fontSize:13,fontFamily:'var(--font-mono)'}}/>
+            </div>
+            <div style={{fontSize:12,color:'var(--fg-2)',marginBottom:16,padding:'10px 14px',background:'var(--bg-1)',borderRadius:8,border:'1px solid var(--line-2)'}}>
+              Find these in: <b style={{color:'var(--fg-1)'}}>Supabase Dashboard → Project Settings → API</b>
+            </div>
+            <button className="btn primary" onClick={save} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+              {saved ? '✓ Saved — reloading…' : 'Save & Connect'}
+            </button>
+          </div>
+        )}
+        {tab==='sql'&&(
+          <div>
+            <div style={{fontSize:13,color:'var(--fg-2)',marginBottom:12}}>Run this SQL in <b style={{color:'var(--fg-1)'}}>Supabase → SQL Editor</b> to create demo users:</div>
+            <pre>{SQL}</pre>
+            <button className="btn" onClick={()=>{navigator.clipboard.writeText(SQL);}} style={{fontSize:12}}>Copy SQL</button>
+          </div>
+        )}
+        {tab==='accounts'&&(
+          <div>
+            <div style={{fontSize:13,color:'var(--fg-2)',marginBottom:16}}>Demo accounts (work in mock mode without Supabase):</div>
+            {MOCK_USERS.map(u=>(
+              <div key={u.email} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 14px',background:'var(--bg-1)',border:'1px solid var(--line-2)',borderRadius:8,marginBottom:8}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{u.name} <span style={{fontSize:11,color:'var(--fg-3)',padding:'2px 6px',background:'var(--bg-3)',borderRadius:4}}>{u.role}</span></div>
+                  <div style={{fontSize:12,color:'var(--fg-2)',marginTop:2}}>{u.email}</div>
+                </div>
+                <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--accent)'}}>{u.password}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SIDEBAR
+// ═══════════════════════════════════════════════════════════
+function Sidebar({ route, setRoute, onSignOut, apiLive }) {
+  return (
+    <aside className="sidebar shell-side">
+      <div className="brand">
+        <div className="brand-mark"><div className="third"/></div>
+        <div className="brand-name">STOCK YAHOO</div>
+      </div>
+      <div className="nav-section">Workspace</div>
+      <a className={'nav-item '+(route.name==='dashboard'?'active':'')} onClick={()=>setRoute({name:'dashboard'})}><Icon.Dashboard/> Dashboard</a>
+      <a className={'nav-item '+(route.name==='watchlist'?'active':'')} onClick={()=>setRoute({name:'watchlist'})}><Icon.Star/> Watchlist</a>
+      <a className="nav-item"><Icon.Globe/> Markets</a>
+      <a className="nav-item"><Icon.Sparkles/> AI Desk</a>
+      <a className="nav-item"><Icon.Bell/> Alerts</a>
+      <div className="nav-section">Account</div>
+      <a className="nav-item"><Icon.Settings/> Settings</a>
+      <a className="nav-item" onClick={onSignOut}><Icon.SignOut/> Sign out</a>
+      <div className="nav-mini">
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+          <span style={{width:7,height:7,borderRadius:999,background:apiLive?'var(--up)':'var(--fg-3)',display:'inline-block',boxShadow:apiLive?'0 0 0 4px var(--up-2)':'none'}}/>
+          <b>{apiLive?'Live data':'Mock data'}</b>
+        </div>
+        {apiLive?'Yahoo Finance · real-time prices':'Configure Yahoo proxy for live prices'}
+      </div>
+    </aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TOP BAR
+// ═══════════════════════════════════════════════════════════
+function TopBar({ onOpenSearch, user, apiLive, onRefresh, refreshing }) {
+  const [now, setNow] = React.useState(new Date());
+  React.useEffect(() => { const t = setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(t); }, []);
+  const time = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  return (
+    <div className="topbar shell-top">
+      <div className="search" onClick={onOpenSearch} role="button">
+        <Icon.Search/><span style={{flex:1}}>Search tickers, indices, FX…</span><kbd>⌘K</kbd>
+      </div>
+      <div style={{flex:1}}/>
+      <span className={'api-badge '+(apiLive?'live':'mock')}>{apiLive?'LIVE':'MOCK'}</span>
+      <button className="btn icon ghost" onClick={onRefresh} disabled={refreshing} title="Refresh data" style={{opacity:refreshing?.5:1}}>
+        <Icon.Refresh style={refreshing?{animation:'spin 1s linear infinite'}:{}}/>
+      </button>
+      <div className="topbar clock"><span className="live-dot"/>LIVE · {time} <span style={{color:'var(--fg-3)'}}>ICT</span></div>
+      <button className="btn icon" aria-label="Alerts"><Icon.Bell/></button>
+      <div className="topbar avatar">{(user?.email?.[0]||'T').toUpperCase()}</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════════════
+function Dashboard({ watchlist, onOpen, onRemove, onAddTicker, stockDB, showRibbon=true, showAIBrief=true }) {
+  const allSyms = Object.keys(stockDB);
+  const gainers = allSyms.map(s=>stockDB[s]).filter(Boolean).sort((a,b)=>b.change_percent-a.change_percent).slice(0,3);
+  const losers  = allSyms.map(s=>stockDB[s]).filter(Boolean).sort((a,b)=>a.change_percent-b.change_percent).slice(0,3);
+  const portfolioValue=248392.42, dayPnL=3412.18, dayPct=1.39;
+
+  return (
+    <div>
+      {showRibbon&&<MarketRibbon indices={INDICES}/>}
+      <div style={{display:'grid',gridTemplateColumns:showAIBrief?'1.6fr 1fr':'1fr',gap:18,marginBottom:18}}>
+        <div className="card">
+          <h3>Portfolio · USD <span style={{fontWeight:400,textTransform:'none',letterSpacing:0,color:'var(--fg-3)',fontSize:12}}>as of {new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span></h3>
+          <div style={{display:'flex',alignItems:'baseline',gap:18}}>
+            <div className="mono" style={{fontSize:36,fontWeight:600,letterSpacing:'-.02em'}}>${portfolioValue.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+            <div className="mono up" style={{fontSize:15}}>▲ ${dayPnL.toLocaleString('en-US',{minimumFractionDigits:2})} ({fmtPct(dayPct)})</div>
+          </div>
+          <div style={{marginTop:12,height:120}}><PortfolioChart/></div>
+        </div>
+        {showAIBrief&&(
+          <div className="ai-card">
+            <h3><span className="ai-mark"/> AI MARKET BRIEF · {new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</h3>
+            <p>US equities open mixed with semis leading on AI capex commentary. NVDA prints +3.5% on hyperscaler order revisions; TSLA underperforms ahead of robotaxi day. SET closed bid — AOT +2.47% led airport names. Watch 10Y yield at 4.42% as the swing factor.</p>
+            <div style={{display:'flex',gap:8,marginTop:14}}>
+              <span className="chip up"><span className="dot"/> Risk-on</span>
+              <span className="chip">VIX 14.2</span>
+              <span className="chip">DXY 104.82</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card tight" style={{marginBottom:18}}>
+        <h3>
+          My Watchlist <span style={{color:'var(--fg-3)',marginLeft:8,fontWeight:400}}>{watchlist.length} symbols</span>
+          <span style={{display:'flex',gap:6}}>
+            <button className="btn" style={{padding:'6px 12px',fontSize:12}} onClick={onAddTicker}><Icon.Plus/> Add ticker</button>
+          </span>
+        </h3>
+        <table className="watchlist">
+          <thead><tr>
+            <th>Symbol</th><th>Last</th><th>Change</th><th>% Change</th><th>Volume</th><th>Market Cap</th><th className="spark-cell">5-day</th><th style={{width:36}}></th>
+          </tr></thead>
+          <tbody>
+            {watchlist.map(sym=>{
+              const s=stockDB[sym]||MOCK_DB[sym];
+              if(!s) return null;
+              const cls=s.change>=0?'up':'down';
+              return (
+                <tr key={sym} onClick={()=>onOpen(sym)}>
+                  <td><div className="sym"><StockLogo symbol={sym}/><div className="sym-text"><div className="sym-ticker">{sym}</div><div className="sym-name">{s.name}</div></div></div></td>
+                  <td className="mono">{fmtPrice(s.price,s.currency)}</td>
+                  <td className={'mono '+cls}>{(s.change>=0?'+':'')+s.change.toFixed(2)}</td>
+                  <td className={'mono '+cls}>{fmtPct(s.change_percent)}</td>
+                  <td className="mono dim">{fmtBig(s.volume)}</td>
+                  <td className="mono dim">{fmtBig(s.market_cap)}</td>
+                  <td className="spark-cell"><Sparkline data={buildSpark(s,32)} color={s.change>=0?'var(--up)':'var(--down)'}/></td>
+                  <td><button className="btn icon ghost" onClick={e=>{e.stopPropagation();onRemove(sym);}} title="Remove" style={{color:'var(--fg-3)'}}><Icon.Trash/></button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18}}>
+        <MoversCard title="Top Gainers" items={gainers} direction="up" onOpen={onOpen}/>
+        <MoversCard title="Top Losers"  items={losers}  direction="down" onOpen={onOpen}/>
+      </div>
+    </div>
+  );
+}
+
+function MoversCard({ title, items, direction, onOpen }) {
+  const Ic = direction==='up'?Icon.TrendUp:Icon.TrendDown;
+  return (
+    <div className="card tight">
+      <h3>
+        <span style={{display:'flex',alignItems:'center',gap:8,color:direction==='up'?'var(--up)':'var(--down)'}}><Ic/> {title}</span>
+        <a className="dim" style={{fontSize:12,textTransform:'none',letterSpacing:0,fontWeight:400}}>View all →</a>
+      </h3>
+      <div>
+        {items.map(s=>(
+          <div key={s.symbol} onClick={()=>onOpen(s.symbol)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 4px',borderTop:'1px solid var(--line-1)',cursor:'pointer'}}>
+            <StockLogo symbol={s.symbol}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,fontSize:13.5}}>{s.symbol}</div>
+              <div className="dim" style={{fontSize:11.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
+            </div>
+            <Sparkline data={buildSpark(s,24)} color={direction==='up'?'var(--up)':'var(--down)'} width={90} height={26}/>
+            <div style={{width:80,textAlign:'right'}}>
+              <div className="mono" style={{fontSize:13}}>{fmtPrice(s.price,s.currency)}</div>
+              <div className={'mono '+direction} style={{fontSize:11.5}}>{fmtPct(s.change_percent)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PortfolioChart() {
+  const data = React.useMemo(()=>{
+    let x=42*9301+49297;const rnd=()=>{x=(x*9301+49297)%233280;return x/233280;};
+    let v=230000;const arr=[];
+    for(let i=0;i<90;i++){v*=1+(rnd()-.45)*.012;arr.push(v);}
+    arr[89]=248392;return arr;
+  },[]);
+  const min=Math.min(...data),max=Math.max(...data),range=max-min||1;
+  const pad=4,W=1000,H=120,step=(W-pad*2)/(data.length-1);
+  const pts=data.map((v,i)=>[pad+i*step,pad+(H-pad*2)*(1-(v-min)/range)]);
+  const d=pts.map((p,i)=>(i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  const dFill=d+` L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{width:'100%',height:'100%'}}>
+      <defs><linearGradient id="port" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.30"/>
+        <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
+      </linearGradient></defs>
+      <path d={dFill} fill="url(#port)"/>
+      <path d={d} fill="none" stroke="var(--accent)" strokeWidth="1.7" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ADD TICKER MODAL
+// ═══════════════════════════════════════════════════════════
+function AddTickerModal({ onClose, onAdd, stockDB }) {
+  const [q, setQ] = React.useState('');
+  const all = Object.keys(MOCK_DB);
+  const results = q.trim() ? all.filter(s=>s.includes(q.toUpperCase())||MOCK_DB[s]?.name.toLowerCase().includes(q.toLowerCase())) : all;
+  return (
+    <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="search-modal">
+        <div className="search-input">
+          <Icon.Search/>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search ticker to add…" autoFocus/>
+          <button className="btn" style={{padding:'4px 8px',fontSize:11}} onClick={onClose}>esc</button>
+        </div>
+        <div className="search-results">
+          {results.slice(0,10).map(sym=>{
+            const s=MOCK_DB[sym];if(!s)return null;
+            return (
+              <div key={sym} className="search-row" onClick={()=>{onAdd(sym);onClose();}}>
+                <StockLogo symbol={sym}/>
+                <div className="info"><div className="t">{sym} <span>{s.exchange}</span></div><div className="n">{s.name}</div></div>
+                <div className="px"><div>{fmtPrice(s.price,s.currency)}</div><div className={'dim '+(s.change>=0?'up':'down')} style={{fontSize:11}}>{fmtPct(s.change_percent)}</div></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STOCK DETAIL
+// ═══════════════════════════════════════════════════════════
+function StockDetail({ symbol, stockDB, onBack, isStarred, onToggleStar }) {
+  const base = stockDB[symbol] || MOCK_DB[symbol];
+  const [period, setPeriod] = React.useState('1mo');
+  const [chartSeries, setChartSeries] = React.useState(null);
+  const [loadingChart, setLoadingChart] = React.useState(false);
+
+  const periodToRange = { '1d':'1d','5d':'5d','1mo':'1mo','3mo':'3mo','6mo':'6mo','1y':'1y','5y':'5y' };
+  const periodToInterval = { '1d':'5m','5d':'15m','1mo':'1d','3mo':'1d','6mo':'1wk','1y':'1wk','5y':'1mo' };
+  const periodToPoints = { '1d':24,'5d':30,'1mo':30,'3mo':65,'6mo':130,'1y':250,'5y':260 };
+
+  React.useEffect(()=>{
+    setLoadingChart(true);
+    YF.getChart(symbol, periodToRange[period], periodToInterval[period])
+      .then(data=>{ if(data&&data.length>1) setChartSeries(data); else throw new Error('empty'); })
+      .catch(()=>{ setChartSeries(base ? buildSeries(base, periodToPoints[period]||30, 0.20) : null); })
+      .finally(()=>setLoadingChart(false));
+  }, [symbol, period]);
+
+  if (!base) return <div className="card">Symbol not found.</div>;
+  const s=base;
+  const cls=s.change>=0?'up':'down';
+  const series=chartSeries||(s?buildSeries(s,periodToPoints[period]||30,0.20):[]);
+  const pctOfRange=((s.price-s.week_52_low)/(s.week_52_high-s.week_52_low))*100;
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:18,fontSize:13,color:'var(--fg-2)'}}>
+        <button className="btn ghost" style={{padding:'6px 10px'}} onClick={onBack}><Icon.ArrowLeft/> Back</button>
+        <span style={{color:'var(--fg-3)'}}>·</span><span>Watchlist</span><Icon.Chevron dir="right"/>
+        <span style={{color:'var(--fg-0)'}}>{symbol}</span>
+        {s._live&&<span className="api-badge live" style={{marginLeft:4}}>LIVE</span>}
+      </div>
+
+      <div className="detail-header">
+        <div className="detail-title">
+          <StockLogo symbol={symbol} size={48}/>
+          <div>
+            <h1>
+              <span className="ticker">{symbol}</span>
+              <span className="ex">{s.exchange}</span>
+              <span className="ex">{s.currency}</span>
+            </h1>
+            <div className="name">{s.name} · {s.sector}</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn" onClick={onToggleStar}><Icon.Star filled={isStarred}/>{isStarred?'In Watchlist':'Add to Watchlist'}</button>
+          <button className="btn"><Icon.Bell/> Set alert</button>
+          <button className="btn primary">Trade</button>
+        </div>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1.7fr 1fr',gap:18,marginBottom:18}}>
+        <div className="card">
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18}}>
+            <div>
+              <div className="price-block">
+                <span className="big">{fmtPrice(s.price,s.currency)}</span>
+                <span className={'delta '+cls}>{s.change>=0?'▲':'▼'} {Math.abs(s.change).toFixed(2)} ({fmtPct(s.change_percent)})</span>
+              </div>
+              <div className="dim" style={{fontSize:12,marginTop:6}}>
+                {new Date().toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'})} · Source: Yahoo Finance
+              </div>
+            </div>
+            <div className="period-tabs">
+              {['1d','5d','1mo','3mo','6mo','1y','5y'].map(p=>(
+                <button key={p} className={p===period?'active':''} onClick={()=>setPeriod(p)}>{p.toUpperCase()}</button>
+              ))}
+            </div>
+          </div>
+          {loadingChart
+            ? <div style={{height:360,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--fg-3)',fontSize:13}}>Loading chart…</div>
+            : <LineChart series={series} trend={s.change>=0?'up':'down'}/>
+          }
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column',gap:18}}>
+          <div className="ai-card">
+            <h3><span className="ai-mark"/> AI SUMMARY · CLAUDE</h3>
+            <p>{aiSummaryFor(symbol)}</p>
+            <button className="btn" style={{marginTop:14,padding:'7px 12px',fontSize:12}}><Icon.Sparkles/> Regenerate</button>
+          </div>
+          <div className="card">
+            <h3>52-Week Range</h3>
+            <div className="range"><div className="fill"/><div className="marker" style={{left:`${Math.max(0,Math.min(100,pctOfRange))}%`}}/></div>
+            <div className="range-labels">
+              <span>{fmtPrice(s.week_52_low,s.currency)}</span>
+              <span style={{color:'var(--fg-0)'}}>Now</span>
+              <span>{fmtPrice(s.week_52_high,s.currency)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="stats">
+        {[
+          ['Open',       fmtPrice(s.price-s.change,s.currency)],
+          ['Volume',     fmtBig(s.volume)],
+          ['Market Cap', fmtBig(s.market_cap)],
+          ['P/E Ratio',  s.pe_ratio?s.pe_ratio.toFixed(2):'—'],
+          ['52W High',   fmtPrice(s.week_52_high,s.currency)],
+          ['52W Low',    fmtPrice(s.week_52_low,s.currency)],
+          ['Exchange',   s.exchange,false],
+          ['Sector',     s.sector||'—',false],
+        ].map(([label,val,mono=true])=>(
+          <div className="stat" key={label}>
+            <div className="stat-label">{label}</div>
+            <div className="stat-value" style={{fontFamily:mono?'var(--font-mono)':'var(--font-sans)',fontSize:mono?undefined:14}}>{val}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SEARCH OVERLAY
+// ═══════════════════════════════════════════════════════════
+function SearchOverlay({ onClose, onPick, stockDB }) {
+  const [q, setQ] = React.useState('');
+  const [focus, setFocus] = React.useState(0);
+  const inputRef = React.useRef(null);
+  React.useEffect(()=>{ inputRef.current?.focus(); },[]);
+  const all = Object.values({...MOCK_DB,...stockDB});
+  const results = q.trim() ? all.filter(s=>s.symbol.toLowerCase().includes(q.toLowerCase())||s.name.toLowerCase().includes(q.toLowerCase())) : all.slice(0,8);
+  React.useEffect(()=>{
+    const onKey=(e)=>{
+      if(e.key==='Escape') onClose();
+      else if(e.key==='ArrowDown'){e.preventDefault();setFocus(f=>Math.min(results.length-1,f+1));}
+      else if(e.key==='ArrowUp'){e.preventDefault();setFocus(f=>Math.max(0,f-1));}
+      else if(e.key==='Enter'&&results[focus]) onPick(results[focus].symbol);
+    };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[focus,results,onClose,onPick]);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="search-modal" onClick={e=>e.stopPropagation()}>
+        <div className="search-input">
+          <Icon.Search/>
+          <input ref={inputRef} value={q} onChange={e=>{setQ(e.target.value);setFocus(0);}} placeholder="Search tickers, e.g. AAPL, NVDA, PTT.BK…"/>
+          <button className="btn" style={{padding:'4px 8px',fontSize:11}} onClick={onClose}>esc</button>
+        </div>
+        <div className="search-results">
+          {results.length===0&&<div style={{padding:30,textAlign:'center',color:'var(--fg-2)',fontSize:13}}>No matches for "{q}"</div>}
+          {results.map((s,i)=>(
+            <div key={s.symbol} className={'search-row '+(i===focus?'focused':'')} onMouseEnter={()=>setFocus(i)} onClick={()=>onPick(s.symbol)}>
+              <StockLogo symbol={s.symbol}/>
+              <div className="info"><div className="t">{s.symbol} <span>{s.exchange}</span></div><div className="n">{s.name}</div></div>
+              <div className="px">
+                <div>{fmtPrice(s.price,s.currency)}</div>
+                <div className={'dim '+(s.change>=0?'up':'down')} style={{fontSize:11,textAlign:'right'}}>{fmtPct(s.change_percent)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="search-footer">
+          <span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  APP ROOT
+// ═══════════════════════════════════════════════════════════
+function App() {
+  const [user, setUser] = React.useState(null);
+  const [route, setRoute] = React.useState({ name: 'dashboard' });
+  const [watchlist, setWatchlist] = React.useState(DEFAULT_WATCHLIST);
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [addTickerOpen, setAddTickerOpen] = React.useState(false);
+  const [setupOpen, setSetupOpen] = React.useState(false);
+  const [stockDB, setStockDB] = React.useState({ ...MOCK_DB });
+  const [apiLive, setApiLive] = React.useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+
+  // Restore session on mount
+  React.useEffect(()=>{
+    Auth.getSession().then(u=>{ if(u) setUser(u); });
+  },[]);
+
+  // ⌘K shortcut
+  React.useEffect(()=>{
+    const onKey=(e)=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(user)setSearchOpen(true);} };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[user]);
+
+  // Fetch live data from Yahoo Finance
+  const refreshData = React.useCallback(async ()=>{
+    setRefreshing(true);
+    try {
+      const syms = [...new Set([...watchlist, ...Object.keys(MOCK_DB)])];
+      const quotes = await YF.getQuotes(syms);
+      if (quotes && quotes.length > 0) {
+        const updated = { ...MOCK_DB };
+        quotes.forEach(q => {
+          const fallback = MOCK_DB[q.symbol] || {};
+          updated[q.symbol] = YF.mapQuote(q, fallback);
+        });
+        setStockDB(updated);
+        setApiLive(true);
+        setToast({ msg: `Live data updated · ${quotes.length} symbols`, type: 'success' });
+      }
+    } catch (e) {
+      setApiLive(false);
+      setToast({ msg: 'Using mock data · Yahoo Finance proxy unavailable', type: 'info' });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [watchlist]);
+
+  // Auto-refresh on login and every 60s
+  React.useEffect(()=>{
+    if (!user) return;
+    refreshData();
+    const t = setInterval(refreshData, 60_000);
+    return ()=>clearInterval(t);
+  },[user]);
+
+  const toggleStar = (sym) => setWatchlist(w=>w.includes(sym)?w.filter(s=>s!==sym):[...w,sym]);
+
+  if (!user) {
+    return (
+      <>
+        <LoginScreen onLogin={setUser} onOpenSetup={()=>setSetupOpen(true)}/>
+        {setupOpen&&<SetupPanel onClose={()=>setSetupOpen(false)}/>}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="shell">
+        <Sidebar route={route} setRoute={setRoute} onSignOut={async()=>{ await Auth.signOut(); setUser(null); setRoute({name:'dashboard'}); }} apiLive={apiLive}/>
+        <TopBar user={user} onOpenSearch={()=>setSearchOpen(true)} apiLive={apiLive} onRefresh={refreshData} refreshing={refreshing}/>
+        <main className="shell-main">
+          {(route.name==='dashboard'||route.name==='watchlist')&&(
+            <Dashboard
+              watchlist={watchlist}
+              stockDB={stockDB}
+              showRibbon={true}
+              showAIBrief={true}
+              onOpen={sym=>setRoute({name:'detail',symbol:sym})}
+              onRemove={sym=>setWatchlist(w=>w.filter(s=>s!==sym))}
+              onAddTicker={()=>setAddTickerOpen(true)}
+            />
+          )}
+          {route.name==='detail'&&(
+            <StockDetail
+              symbol={route.symbol}
+              stockDB={stockDB}
+              onBack={()=>setRoute({name:'dashboard'})}
+              isStarred={watchlist.includes(route.symbol)}
+              onToggleStar={()=>toggleStar(route.symbol)}
+            />
+          )}
+        </main>
+      </div>
+
+      {searchOpen&&<SearchOverlay stockDB={stockDB} onClose={()=>setSearchOpen(false)} onPick={sym=>{setSearchOpen(false);setRoute({name:'detail',symbol:sym});}}/>}
+      {addTickerOpen&&<AddTickerModal stockDB={stockDB} onClose={()=>setAddTickerOpen(false)} onAdd={sym=>setWatchlist(w=>w.includes(sym)?w:[...w,sym])}/>}
+      {setupOpen&&<SetupPanel onClose={()=>setSetupOpen(false)}/>}
+      {toast&&<Toast msg={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+    </>
+  );
+}
+
+// Spin animation for refresh button
+const spinStyle = document.createElement('style');
+spinStyle.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+document.head.appendChild(spinStyle);
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>
