@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "*.html", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/", "dest": "/Stock Yahoo Terminal.html" },
+    { "src": "/terminal", "dest": "/Stock Yahoo Terminal.html" }
+  ]
+}
